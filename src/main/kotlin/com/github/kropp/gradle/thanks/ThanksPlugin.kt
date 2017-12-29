@@ -4,7 +4,6 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.component.ComponentIdentifier
 import org.gradle.api.artifacts.result.*
-import org.gradle.kotlin.dsl.get
 import org.gradle.kotlin.dsl.task
 import org.gradle.maven.MavenModule
 import org.gradle.maven.MavenPomArtifact
@@ -13,37 +12,58 @@ import java.net.URL
 import javax.xml.parsers.DocumentBuilderFactory
 
 class ThanksPlugin : Plugin<Project> {
+  private val ENV_VAR = "GITHUB_TOKEN"
+
   override fun apply(project: Project) {
     project.task("thanks") {
       doLast {
-        project.findDependenciesAndStar { root.dependencies }
+        withToken(project) { token ->
+          project.allprojects.findDependenciesAndStar(token) { root.dependencies }
+        }
       }
     }
     project.task("thanksAll") {
       doLast {
-        project.findDependenciesAndStar { allDependencies }
+        withToken(project) { token ->
+          project.allprojects.findDependenciesAndStar(token) { allDependencies }
+        }
       }
     }
   }
 
-  private fun Project.findDependenciesAndStar(dependencies: ResolutionResult.() -> Set<DependencyResult>) {
-    val dependencyIds = this.configurations.toList().filter { it.isCanBeResolved }.flatMap { it.incoming.resolutionResult.dependencies() }
-        .filterIsInstance<ResolvedDependencyResult>().map { it.selected.id }
-    val repositories = getPoms(this, dependencyIds).mapNotNull { readGithubProjectsFromPom(it) }.toSet()
+  private fun withToken(project: Project, action: (String) -> Unit) {
+    val token = project.properties["GithubToken"] as? String ?: System.getenv(ENV_VAR)
+    if (token.isNullOrEmpty()) {
+      println("Github API token not found. Please set -PGithubToken parameter or environment variable $ENV_VAR")
+    } else {
+      action(token)
+    }
+  }
+
+  private fun Set<Project>.findDependenciesAndStar(token: String, dependencies: ResolutionResult.() -> Set<DependencyResult>) {
+    val repositories = this.flatMap { it.getRepositories(dependencies) }.toSet()
     if (repositories.any()) {
       println("Starring Github repositories from dependencies")
     } else {
       println("No Github repositories found in dependencies")
     }
-    repositories
-        .forEach {
-          if (isStarred(it)) {
-            println("\u2b50 $it")
-          } else {
-            star(it)
-            println("\uD83C\uDF1F $it")
-          }
+    repositories.forEach {
+      if (it.isStarred(token)) {
+        println(" \u2b50 $it")
+      } else {
+        if (it.star(token)) {
+          println(" \uD83C\uDF1F $it")
+        } else {
+          println(" \u274c $it")
         }
+      }
+    }
+  }
+
+  private fun Project.getRepositories(dependencies: ResolutionResult.() -> Set<DependencyResult>): List<String> {
+    val dependencyIds = configurations.filter { it.isCanBeResolved }.flatMap { it.incoming.resolutionResult.dependencies() }
+        .filterIsInstance<ResolvedDependencyResult>().map { it.selected.id }
+    return getPoms(this, dependencyIds).mapNotNull { readGithubProjectsFromPom(it) }
   }
 
   private fun getPoms(project: Project, ids: List<ComponentIdentifier>) =
@@ -66,8 +86,8 @@ class ThanksPlugin : Plugin<Project> {
   }
 
   private val GITHUB_API = "https://api.github.com"
-  private fun Project.isStarred(repo: String) = httpRequestResponse("GET", "$GITHUB_API/user/starred/$repo", properties["token"] as? String ?: System.getenv("GITHUB_TOKEN")) == 204
-  private fun Project.star(repo: String) = httpRequestResponse("PUT", "$GITHUB_API/user/starred/$repo", properties["token"] as? String ?: System.getenv("GITHUB_TOKEN")) == 204
+  private fun String.isStarred(token: String) = httpRequestResponse("GET", "$GITHUB_API/user/starred/$this", token) == 204
+  private fun String.star(token: String) = httpRequestResponse("PUT", "$GITHUB_API/user/starred/$this", token) == 204
 
   private fun httpRequestResponse(method: String, url: String, token: String): Int? {
     val httpCon = URL(url).openConnection() as? HttpURLConnection ?: return null
