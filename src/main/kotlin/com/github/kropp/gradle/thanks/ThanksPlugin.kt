@@ -51,10 +51,11 @@ class ThanksPlugin : Plugin<Project> {
       if (it.isStarred(token)) {
         println(" \u2b50 $it")
       } else {
-        if (it.star(token)) {
+        val response = it.star(token)
+        if (response == 204) {
           println(" \uD83C\uDF1F $it")
         } else {
-          println(" \u274c $it")
+          println(" \u274c $it ($response)")
         }
       }
     }
@@ -82,12 +83,13 @@ class ThanksPlugin : Plugin<Project> {
   private fun readGithubProjectsFromPom(filename: String): String? {
     val document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(filename)
     val scm = document.getElementsByTagName("scm").asSequence().firstOrNull() ?: return null
-    return scm.childNodes.asSequence().filter { it.textContent.contains("github.com") }.firstOrNull()?.textContent?.substringAfter("github.com/")
+    val url = scm.childNodes.asSequence().filter { it.textContent.contains("github.com") }.firstOrNull()?.textContent
+    return url?.substringAfter("github.com/")?.removeSuffix(".git")
   }
 
   private val GITHUB_API = "https://api.github.com"
   private fun String.isStarred(token: String) = httpRequestResponse("GET", "$GITHUB_API/user/starred/$this", token) == 204
-  private fun String.star(token: String) = httpRequestResponse("PUT", "$GITHUB_API/user/starred/$this", token) == 204
+  private fun String.star(token: String) = httpRequestResponse("PUT", "$GITHUB_API/user/starred/$this", token)
 
   private fun httpRequestResponse(method: String, url: String, token: String): Int? {
     val httpCon = URL(url).openConnection() as? HttpURLConnection ?: return null
