@@ -27,7 +27,7 @@ class ThanksPlugin : Plugin<Project> {
   }
 
   private fun Project.findDependenciesAndStar(dependencies: ResolutionResult.() -> Set<DependencyResult>) {
-    val dependencyIds = this.configurations["compile"].incoming.resolutionResult.dependencies()
+    val dependencyIds = this.configurations.toList().filter { it.isCanBeResolved }.flatMap { it.incoming.resolutionResult.dependencies() }
         .filterIsInstance<ResolvedDependencyResult>().map { it.selected.id }
     val repositories = getPoms(this, dependencyIds).mapNotNull { readGithubProjectsFromPom(it) }.toSet()
     if (repositories.any()) {
