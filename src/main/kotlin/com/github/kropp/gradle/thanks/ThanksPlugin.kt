@@ -84,7 +84,7 @@ class ThanksPlugin : Plugin<Project> {
     val document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(filename)
     val scm = document.getElementsByTagName("scm").asSequence().firstOrNull() ?: return null
     val url = scm.childNodes.asSequence().filter { it.textContent.contains("github.com") }.firstOrNull()?.textContent
-    return url?.substringAfter("github.com/")?.removeSuffix(".git")
+    return url?.substringAfter("github.com")?.removePrefix("/")?.removePrefix(":")?.removeSuffix(".git")?.removeSuffix("/issues")
   }
 
   private val GITHUB_API = "https://api.github.com"
