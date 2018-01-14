@@ -3,20 +3,32 @@ package com.github.kropp.gradle.thanks
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.component.ComponentIdentifier
-import org.gradle.api.artifacts.result.*
+import org.gradle.api.artifacts.result.DependencyResult
+import org.gradle.api.artifacts.result.ResolutionResult
+import org.gradle.api.artifacts.result.ResolvedArtifactResult
+import org.gradle.api.artifacts.result.ResolvedDependencyResult
+import org.gradle.api.internal.project.ProjectInternal
 import org.gradle.kotlin.dsl.task
 import org.gradle.maven.MavenModule
 import org.gradle.maven.MavenPomArtifact
 import java.io.IOException
 import java.net.HttpURLConnection
-import java.net.SocketTimeoutException
 import java.net.URL
 import javax.xml.parsers.DocumentBuilderFactory
 
-class ThanksPlugin : Plugin<Project> {
+class ThanksPlugin : Plugin<ProjectInternal> {
   private val ENV_VAR = "GITHUB_TOKEN"
 
-  override fun apply(project: Project) {
+  private val pluginRepos = mutableSetOf<String>()
+
+  override fun apply(project: ProjectInternal) {
+    project.pluginManager.pluginContainer.all {
+      val pluginClassName = this::class.qualifiedName
+      if (pluginClassName != null) {
+        resolvePluginRepo(pluginClassName)?.let { pluginRepos += it }
+      }
+    }
+
     project.task("thanks") {
       doLast {
         withToken(project) { token ->
@@ -24,6 +36,14 @@ class ThanksPlugin : Plugin<Project> {
 //          project.allprojects.findDependenciesAndStar(token) { root.dependencies }
         }
       }
+    }
+  }
+
+  private fun resolvePluginRepo(className: String): String? {
+    return when(className) {
+      "org.gradle.kotlin.dsl.plugins.dsl.KotlinDslPlugin" -> "gradle/kotlin-dsl"
+      "com.github.kropp.gradle.thanks.ThanksPlugin" -> "kropp/gradle-plugin-thanks"
+      else -> if (className.startsWith("org.gradle")) "gradle/gradle" else null
     }
   }
 
@@ -37,11 +57,11 @@ class ThanksPlugin : Plugin<Project> {
   }
 
   private fun Set<Project>.findDependenciesAndStar(token: String, dependencies: ResolutionResult.() -> Set<DependencyResult>) {
-    val repositories = this.flatMap { it.getRepositories(dependencies) }.toSet()
+    val repositories = pluginRepos + this.flatMap { it.getRepositories(dependencies) }.toSet()
     if (repositories.any()) {
-      println("Starring Github repositories from dependencies")
+      println("Starring Github repositories from dependencies and plugins")
     } else {
-      println("No Github repositories found in dependencies")
+      println("No Github repositories found in dependencies and plugins")
     }
 
     loop@ for (repository in repositories) {
