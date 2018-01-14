@@ -7,7 +7,9 @@ import org.gradle.api.artifacts.result.*
 import org.gradle.kotlin.dsl.task
 import org.gradle.maven.MavenModule
 import org.gradle.maven.MavenPomArtifact
+import java.io.IOException
 import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
 import java.net.URL
 import javax.xml.parsers.DocumentBuilderFactory
 
@@ -43,15 +45,19 @@ class ThanksPlugin : Plugin<Project> {
     }
 
     loop@ for (repository in repositories) {
-      if (repository.isStarred(token)) {
-        println(" \u2b50 $repository")
-      } else {
-        val response = repository.star(token)
-        when (response) {
-          401 -> { println("Authentication failed. Please check Github token."); break@loop }
-          204 -> println(" \uD83C\uDF1F $repository")
-          else -> println(" \u274c $repository ($response)")
+      try {
+        if (repository.isStarred(token)) {
+          println(" \u2b50 $repository")
+        } else {
+          val response = repository.star(token)
+          when (response) {
+            401 -> { println("Authentication failed. Please check Github token."); break@loop }
+            204 -> println(" \uD83C\uDF1F $repository")
+            else -> println(" \u274c $repository ($response)")
+          }
         }
+      } catch (e: IOException) {
+        println(" \u274c $repository (${e.message})")
       }
     }
   }
