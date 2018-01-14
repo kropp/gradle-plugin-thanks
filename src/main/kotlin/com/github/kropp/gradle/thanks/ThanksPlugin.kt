@@ -47,15 +47,16 @@ class ThanksPlugin : Plugin<Project> {
     } else {
       println("No Github repositories found in dependencies")
     }
-    repositories.forEach {
-      if (it.isStarred(token)) {
-        println(" \u2b50 $it")
+
+    loop@ for (repository in repositories) {
+      if (repository.isStarred(token)) {
+        println(" \u2b50 $repository")
       } else {
-        val response = it.star(token)
-        if (response == 204) {
-          println(" \uD83C\uDF1F $it")
-        } else {
-          println(" \u274c $it ($response)")
+        val response = repository.star(token)
+        when (response) {
+          401 -> { println("Authentication failed. Please check Github token."); break@loop }
+          204 -> println(" \uD83C\uDF1F $repository")
+          else -> println(" \u274c $repository ($response)")
         }
       }
     }
