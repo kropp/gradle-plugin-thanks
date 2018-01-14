@@ -18,14 +18,8 @@ class ThanksPlugin : Plugin<Project> {
     project.task("thanks") {
       doLast {
         withToken(project) { token ->
-          project.allprojects.findDependenciesAndStar(token) { root.dependencies }
-        }
-      }
-    }
-    project.task("thanksAll") {
-      doLast {
-        withToken(project) { token ->
           project.allprojects.findDependenciesAndStar(token) { allDependencies }
+//          project.allprojects.findDependenciesAndStar(token) { root.dependencies }
         }
       }
     }
