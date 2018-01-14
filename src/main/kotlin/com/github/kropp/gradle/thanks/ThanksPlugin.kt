@@ -30,6 +30,7 @@ class ThanksPlugin : Plugin<ProjectInternal> {
     }
 
     project.task("thanks") {
+      description = "Star Github repositories from dependencies"
       doLast {
         withToken(project) { token ->
           project.allprojects.findDependenciesAndStar(token) { allDependencies }
